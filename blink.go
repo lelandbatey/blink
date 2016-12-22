@@ -2,11 +2,14 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strconv"
 	"syscall"
 	"time"
 
 	flag "github.com/spf13/pflag"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const device = "/dev/console"
@@ -42,10 +45,43 @@ func blink(onLen time.Duration) {
 	ioctl(console_fd, uintptr(KDSETLED), uintptr(all_off))
 }
 
+func readBlink(duration time.Duration, delimiter string) {
+	delim := []byte(delimiter)
+	dpos := 0
+	buf := make([]byte, 1)
+	for {
+		_, err := os.Stdin.Read(buf)
+		if err != nil {
+			break
+		}
+		if buf[0] == delim[dpos] {
+			// We found the delimiter guys, do the blink!
+			if dpos == len(delim)-1 {
+				dpos = 0
+				blink(duration)
+				time.Sleep(duration)
+			} else {
+				dpos += 1
+			}
+		} else {
+			dpos = 0
+		}
+	}
+}
+
 func main() {
 	onlen := flag.Int64("onlen", 1000, "Length of time to turn on the lights, in milliseconds")
+	delim := flag.String("delim", "\\n", "String to blink on")
 	flag.Parse()
+	d, err := strconv.Unquote(fmt.Sprintf("\"%s\"", *delim))
+	if err == nil {
+		*delim = d
+	}
 
-	dura := time.Duration(*onlen) * time.Millisecond
-	blink(dura)
+	duration := time.Duration(*onlen) * time.Millisecond
+	if !terminal.IsTerminal(syscall.Stdin) {
+		readBlink(duration, *delim)
+	} else {
+		blink(duration)
+	}
 }
