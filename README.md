@@ -15,7 +15,7 @@ it as root! So, to do that we can do this:
 
     # Assuming you're in this directory, will put an executable named "blink"
     # in current directory
-    go build blink.go
+    go build -o blink ./cmd/blink
     # Set the owning user to be root
     sudo chown root blink
     # Set the sticky bit on the executable owned by root, so no matter who
