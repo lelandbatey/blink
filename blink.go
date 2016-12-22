@@ -1,19 +1,18 @@
 // +build linux
-package main
+package blink
 
 import (
-	"fmt"
+	"io"
 	"os"
-	"strconv"
 	"syscall"
 	"time"
 
-	flag "github.com/spf13/pflag"
-	"golang.org/x/crypto/ssh/terminal"
+	"github.com/pkg/errors"
 )
 
 const device = "/dev/console"
 
+// ioctl is a helper function for calling syscalls
 // Thanks Dave Cheney, what a guy!:
 //     https://github.com/davecheney/pcap/blob/10760a170da6335ec1a48be06a86f494b0ef74ab/bpf.go#L45
 func ioctl(fd int, request, argp uintptr) error {
@@ -21,17 +20,18 @@ func ioctl(fd int, request, argp uintptr) error {
 	return os.NewSyscallError("ioctl", errorp)
 }
 
-// blink will turn on the keyboard lights for the given amount of time. Yes ALL
+// Do will turn on the keyboard lights for the given amount of time. Yes ALL
 // the keyboard lights.
-func blink(onLen time.Duration) {
+func Do(onLen time.Duration) error {
 	// ya this is probably not safe, cause I ported this to Go from Python
 	// using four year old go code about how to make ioctl calls in go (btw the
 	// below code is probably SUPER unsafe).
-	console_fd, e := syscall.Open(device, os.O_RDONLY|syscall.O_CLOEXEC, 0666)
-	if e != nil {
-		panic(e)
+	console_fd, err := syscall.Open(device, os.O_RDONLY|syscall.O_CLOEXEC, 0666)
+	if err != nil {
+		return errors.Wrapf(err, "cannot open %q using syscall \"O_RDONLY|O_CLOEXEC 0666\"", device)
 	}
 
+	// google it dawg
 	KDSETLED := 0x4B32
 
 	SCR_LED := 0x01
@@ -43,22 +43,31 @@ func blink(onLen time.Duration) {
 	ioctl(console_fd, uintptr(KDSETLED), uintptr(all_on))
 	time.Sleep(onLen)
 	ioctl(console_fd, uintptr(KDSETLED), uintptr(all_off))
+
+	return nil
 }
 
-func readBlink(duration time.Duration, delimiter string) {
+// DoOnDelim will call blink for duration every time a delimiter is read on
+// the reader and will not blink for at least that duration.
+func DoOnDelim(duration time.Duration, r io.Reader, delimiter string) error {
 	delim := []byte(delimiter)
 	dpos := 0
 	buf := make([]byte, 1)
 	for {
-		_, err := os.Stdin.Read(buf)
-		if err != nil {
+		_, err := r.Read(buf)
+		if err == io.EOF {
 			break
+		}
+		if err != nil {
+			return errors.Wrap(err, "cannot continue reading input")
 		}
 		if buf[0] == delim[dpos] {
 			// We found the delimiter guys, do the blink!
 			if dpos == len(delim)-1 {
 				dpos = 0
-				blink(duration)
+				if err := Do(duration); err != nil {
+					return err
+				}
 				time.Sleep(duration)
 			} else {
 				dpos += 1
@@ -67,21 +76,6 @@ func readBlink(duration time.Duration, delimiter string) {
 			dpos = 0
 		}
 	}
-}
 
-func main() {
-	onlen := flag.Int64("onlen", 1000, "Length of time to turn on the lights, in milliseconds")
-	delim := flag.String("delim", "\\n", "String to blink on")
-	flag.Parse()
-	d, err := strconv.Unquote(fmt.Sprintf("\"%s\"", *delim))
-	if err == nil {
-		*delim = d
-	}
-
-	duration := time.Duration(*onlen) * time.Millisecond
-	if !terminal.IsTerminal(syscall.Stdin) {
-		readBlink(duration, *delim)
-	} else {
-		blink(duration)
-	}
+	return nil
 }
