@@ -2,7 +2,10 @@
 Blink
 =====
 
-This will make your keyboard capslock key blink.
+This package lets you make your keyboard lights blink. You can use blinking
+keyboard lights for all kinds of fun things, such as [notifications of when
+someone visits your
+website!](http://lelandbatey.com/posts/2016/12/Making-lights-blink-for-each-HTTP-request/)
 
 Install
 -------
@@ -24,4 +27,4 @@ it as root! So, to do that we can do this:
 
 And now that you've got your magical "always runs as root" executable, you can
 place it wherever you want (such as in your `$PATH`).
-    
+
