@@ -3,6 +3,7 @@ package blink
 
 import (
 	"io"
+	"log"
 	"os"
 	"syscall"
 	"time"
@@ -27,6 +28,11 @@ func Do(onLen time.Duration) error {
 	// using four year old go code about how to make ioctl calls in go (btw the
 	// below code is probably SUPER unsafe).
 	console_fd, err := syscall.Open(device, os.O_RDONLY|syscall.O_CLOEXEC, 0666)
+	defer func() {
+		if err := syscall.Close(console_fd); err != nil {
+			log.Printf("Failed to close file descriptor for /dev/console, fd %v", console_fd)
+		}
+	}()
 	if err != nil {
 		return errors.Wrapf(err, "cannot open %q using syscall \"O_RDONLY|O_CLOEXEC 0666\"", device)
 	}
