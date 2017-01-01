@@ -17,8 +17,11 @@ const device = "/dev/console"
 // Thanks Dave Cheney, what a guy!:
 //     https://github.com/davecheney/pcap/blob/10760a170da6335ec1a48be06a86f494b0ef74ab/bpf.go#L45
 func ioctl(fd int, request, argp uintptr) error {
-	_, _, errorp := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), request, argp)
-	return os.NewSyscallError("ioctl", errorp)
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), request, argp)
+	if errno != 0 {
+		return os.NewSyscallError("ioctl", errno)
+	}
+	return nil
 }
 
 // Do will turn on the keyboard lights for the given amount of time. Yes ALL
